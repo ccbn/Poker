@@ -1,4 +1,6 @@
-var client = new WebSocket('ws://localhost:8080/', 'echo-protocol');
+import {decoder} from "./decoder.js";
+
+var client = new WebSocket('ws://localhost:8080/?token=1', 'echo-protocol');
 client.binaryType = "arraybuffer";
 client.onerror = function() {
     console.log('Connection Error');
@@ -10,12 +12,9 @@ client.onopen = function() {
     function sendNumber() {
         if (client.readyState === client.OPEN) {
             var number = Math.round(Math.random() * 0xFFFFFF);
-            var buffer = new ArrayBuffer(10);
-            
-            buffer[0] = 2;
-            client.send(buffer);
+            client.send('{"sender" : "Carl", "receiver" : "all","message" : "HEJ!"}');
             //client.send(number.toString());
-            setTimeout(sendNumber, 1000);
+            
         }
     }
     sendNumber();
@@ -26,8 +25,14 @@ client.onclose = function() {
 };
 
 client.onmessage = function(e) {
-    if (typeof e.data === 'string') {
-        console.log("Received: '" + e.data + "'");
-    }
-    console.log(e);
+    var messageHandler = new decoder(e.data,"message");
+
+    messageHandler.onValid(function(object) {
+        console.log("Received: '" + object.message + "'");
+    });
 };
+
+var canvas = document.getElementById("mycanvas");
+var ctx = canvas.getContext("2d");
+ctx.fillStyle = "blue";
+ctx.fillRect(0, 0, canvas.width, canvas.height);

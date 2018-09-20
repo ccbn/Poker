@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 var WebSocketServer = require('websocket').server;
 var http = require('http');
+var decoder = require('./public/decoder');
 
 var server = http.createServer(function(request, response) {
     console.log((new Date()) + ' Received request for ' + request.url);
@@ -26,6 +27,19 @@ function originIsAllowed(origin) {
   return true;
 }
 
+var IDCount = 0;
+var connections = {};
+
+var states = {color : "blue"};
+
+var updateClients = function () 
+{
+    setTimeout(updateClients, 100);    
+}
+
+updateClients();
+
+
 wsServer.on('request', function(request) {
     if (!originIsAllowed(request.origin)) {
         // Make sure we only accept requests from an allowed origin
@@ -33,24 +47,46 @@ wsServer.on('request', function(request) {
         console.log((new Date()) + ' Connection from origin ' + request.origin + ' rejected.');
         return;
     }
+
+    //console.log(request.resourceURL);
+    
     
     var connection = request.accept('echo-protocol', request.origin);
-
+    
+    connection.id = IDCount++;
+    connections[connection.id] = connection;
     console.log((new Date()) + ' Connection accepted.');
 
     connection.on('message', function(message) {
-        console.log(message.type);
         if (message.type === 'utf8') {
+
+            var d = new decoder('{"color" : "black"}',"states");
+
             console.log('Received Message: ' + message.utf8Data);
-            connection.sendUTF(message.utf8Data);
-        }
-        else if (message.type === 'binary') {
-            console.log('Received Binary Message of ' + message.binaryData.length + ' bytes');
-            connection.sendUTF("TEST");
-            //connection.sendBytes(message.binaryData);
+            broadcast(message.utf8Data);
+            //connection.sendUTF(message.utf8Data);
         }
     });
-connection.on('close', function(reasonCode, description) {
-    console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
+    connection.on('close', function(reasonCode, description) {
+        console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
+        delete connections[connection.id];
+    });
 });
-});
+
+
+
+function broadcast(data) {
+    Object.keys(connections).forEach(function(key) {
+        var connection = connections[key];
+        if (connection.connected) {
+            connection.send(data);
+        }
+    });
+}
+
+function sendToConnectionId(connectionID, data) {
+    var connection = connections[connectionID];
+    if (connection && connection.connected) {
+        connection.send(data);
+    }
+}
